@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automatizador de Comisiones — V&A</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --navy: #1B3A6B;
+    --navy-light: #2a4f8f;
+    --green: #1A7A4A;
+    --amber: #92620A;
+    --red: #8B1A1A;
+    --gray-bg: #f5f6f8;
+    --gray-border: #dde1e7;
+    --gray-text: #6b7280;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--gray-bg); color: #1a1a2e; font-size: 14px; }
+
+  .header {
+    background: var(--navy);
+    color: white;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.01em; }
+  .header span { font-size: 12px; opacity: 0.65; margin-top: 2px; display: block; }
+
+  .logo-mark {
+    width: 38px; height: 38px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; letter-spacing: -0.5px;
+    flex-shrink: 0;
+  }
+
+  .layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 60px); }
+
+  .sidebar {
+    background: white;
+    border-right: 1px solid var(--gray-border);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-text);
+    margin-bottom: 8px;
+  }
+
+  .drop-zone {
+    border: 1.5px dashed var(--gray-border);
+    border-radius: 10px;
+    padding: 20px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--gray-bg);
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--navy);
+    background: #eef2f8;
+  }
+  .drop-zone .icon { font-size: 26px; margin-bottom: 8px; }
+  .drop-zone p { font-size: 12px; color: var(--gray-text); line-height: 1.5; }
+  .drop-zone strong { color: var(--navy); }
+  .drop-zone input { display: none; }
+
+  .aseguradora-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .aseg-btn {
+    padding: 7px 6px;
+    border: 1px solid var(--gray-border);
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
+    color: #4a5568;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .aseg-btn:hover { border-color: var(--navy); color: var(--navy); }
+  .aseg-btn.active { background: var(--navy); color: white; border-color: var(--navy); }
+
+  .file-list { display: flex; flex-direction: column; gap: 6px; }
+  .file-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    background: var(--gray-bg);
+    border-radius: 7px;
+    border: 1px solid var(--gray-border);
+  }
+  .file-item .file-icon { font-size: 16px; }
+  .file-item .file-name { font-size: 11px; font-weight: 500; flex: 1; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-item .file-status { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+  .status-ok { background: #d1fae5; color: #065f46; }
+  .status-processing { background: #fef3c7; color: #92400e; }
+  .status-error { background: #fee2e2; color: #991b1b; }
+  .remove-btn { background: none; border: none; cursor: pointer; color: #9ca3af; font-size: 14px; padding: 2px; line-height: 1; }
+  .remove-btn:hover { color: var(--red); }
+
+  .process-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--navy);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .process-btn:hover { background: var(--navy-light); }
+  .process-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+  .export-btn {
+    width: 100%;
+    padding: 10px;
+    background: white;
+    color: var(--green);
+    border: 1.5px solid var(--green);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    display: none;
+  }
+  .export-btn:hover { background: #f0faf4; }
+  .export-btn.visible { display: flex; }
+
+  .main { padding: 24px 28px; overflow-y: auto; }
+
+  .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .card {
+    background: white;
+    border: 1px solid var(--gray-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card-label { font-size: 11px; color: var(--gray-text); font-weight: 500; margin-bottom: 4px; }
+  .card-value { font-size: 22px; font-weight: 700; color: var(--navy); }
+  .card-sub { font-size: 11px; color: var(--gray-text); margin-top: 2px; }
+
+  .tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--gray-border); }
+  .tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: var(--gray-text);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--navy); }
+  .tab.active { color: var(--navy); border-bottom-color: var(--navy); font-weight: 600; }
+
+  .table-container { background: white; border: 1px solid var(--gray-border); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: var(--navy); color: white; }
+  th { padding: 9px 12px; text-align: left; font-weight: 600; font-size: 11px; white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8faff; }
+  .td-right { text-align: right; font-variant-numeric: tabular-nums; }
+  .td-mono { font-family: 'Courier New', monospace; font-size: 11px; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .badge-aserta { background: #dbeafe; color: #1e40af; }
+  .badge-insurgentes { background: #fce7f3; color: #9d174d; }
+  .badge-sofimex { background: #d1fae5; color: #065f46; }
+  .badge-berkley { background: #fef3c7; color: #92400e; }
+  .badge-tokio { background: #ede9fe; color: #5b21b6; }
+  .badge-dorama { background: #fee2e2; color: #991b1b; }
+  .badge-otro { background: #f3f4f6; color: #4b5563; }
+
+  .sucursal-select {
+    font-size: 11px;
+    border: 1px solid var(--gray-border);
+    border-radius: 5px;
+    padding: 3px 6px;
+    background: white;
+    color: #374151;
+    cursor: pointer;
+  }
+  .sucursal-select:focus { outline: none; border-color: var(--navy); }
+
+  .totales-table { margin-top: 24px; }
+  .totales-table th { background: #1a3a6b; }
+  .totales-row { font-weight: 700; background: #f0f4fb !important; }
+  .totales-row td { border-top: 2px solid var(--navy); color: var(--navy); }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--gray-text);
+  }
+  .empty-state .big-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-state h2 { font-size: 16px; color: #374151; margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; line-height: 1.6; max-width: 380px; margin: 0 auto; }
+
+  .alert {
+    padding: 10px 14px;
+    border-radius: 7px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .alert-info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .alert-warn { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  .alert-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+  .progress-bar {
+    height: 3px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--navy);
+    border-radius: 2px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  .log-box {
+    background: #1a1a2e;
+    color: #a3e635;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    max-height: 120px;
+    overflow-y: auto;
+    line-height: 1.8;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .log-box.visible { display: block; }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .summary-cards { grid-template-columns: 1fr 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--gray-border); }
+  }
+
+  @media (max-width: 640px) {
+    .header { padding: 12px 14px; gap: 10px; }
+    .header h1 { font-size: 14px; line-height: 1.3; }
+    .header span { font-size: 10px; }
+    .logo-mark { width: 32px; height: 32px; font-size: 13px; }
+    .main { padding: 14px; }
+    .sidebar { padding: 14px; gap: 14px; }
+    .summary-cards { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .card { padding: 10px 12px; }
+    .card-label { font-size: 10px; }
+    .card-value { font-size: 17px; }
+    .card-sub { font-size: 10px; }
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { font-size: 11px; min-width: 720px; }
+    th { padding: 7px 8px; font-size: 10px; }
+    td { padding: 6px 8px; }
+    .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+    .tab { padding: 8px 12px; font-size: 11px; }
+    .drop-zone { padding: 16px 12px; }
+    .drop-zone p { font-size: 11px; }
+    .process-btn, .export-btn { padding: 13px 10px; font-size: 13px; }
+    .aseguradora-selector { grid-template-columns: 1fr 1fr 1fr; }
+    .empty-state { padding: 40px 16px; }
+    .empty-state .big-icon { font-size: 38px; }
+    .empty-state h2 { font-size: 15px; }
+    .empty-state p { font-size: 12px; }
+    .sucursal-select { font-size: 10px; padding: 2px 4px; }
+  }
+
+  @media (max-width: 380px) {
+    .summary-cards { grid-template-columns: 1fr; }
+    .aseguradora-selector { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-mark">V&A</div>
+  <div>
+    <h1>Automatizador de Comisiones — Fianzas</h1>
+    <span>Zona C: Orizaba · Córdoba · Boca del Río · Xalapa &nbsp;|&nbsp; Velasco Asesores</span>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <div>
+      <div class="section-label">1. Aseguradora</div>
+      <div class="aseguradora-selector" id="asegSelector">
+        <button class="aseg-btn active" data-aseg="ASERTA">ASERTA</button>
+        <button class="aseg-btn" data-aseg="INSURGENTES">Insurgentes</button>
+        <button class="aseg-btn" data-aseg="SOFIMEX">Sofimex</button>
+        <button class="aseg-btn" data-aseg="BERKLEY">Berkley</button>
+        <button class="aseg-btn" data-aseg="TOKIO">Tokio</button>
+        <button class="aseg-btn" data-aseg="DORAMA">Dorama</button>
+        <button class="aseg-btn" data-aseg="OTRO">Otra</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">2. Cargar archivos (PDF o Excel)</div>
+      <div class="drop-zone" id="dropZone">
+        <div class="icon">📁</div>
+        <p><strong>Toca o arrastra</strong> para cargar<br>Acepta PDF y XLS/XLSX</p>
+        <input type="file" id="fileInput" multiple accept=".pdf,.xls,.xlsx">
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Archivos cargados</div>
+      <div class="file-list" id="fileList">
+        <div style="font-size: 11px; color: var(--gray-text); text-align:center; padding: 10px 0;">Ningún archivo aún</div>
+      </div>
+    </div>
+
+    <button class="process-btn" id="processBtn" disabled onclick="processFiles()">
+      ⚙️ Procesar archivos
+    </button>
+
+    <button class="export-btn" id="exportBtn" onclick="exportExcel()">
+      📥 Exportar a Excel ejecutivo
+    </button>
+
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main" id="mainContent">
+    <div class="empty-state">
+      <div class="big-icon">📊</div>
+      <h2>Carga los archivos de comisiones</h2>
+      <p>Selecciona la aseguradora, carga los PDFs o Excels que te llegaron y presiona <strong>Procesar</strong>. El sistema extrae las fianzas, detecta sucursales y calcula totales automáticamente.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let currentAseg = 'ASERTA';
+let loadedFiles = [];
+let parsedData = [];
+let logs = [];
+
+const SUCURSALES = ['XALAPA','ORIZABA','CÓRDOBA','BOCA DEL RÍO','PROMOVIDOS','EDUARDO','SIN ASIGNAR'];
+
+// --- UI: Selector aseguradora ---
+document.querySelectorAll('.aseg-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.aseg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentAseg = btn.dataset.aseg;
+  });
+});
+
+// --- UI: Drop zone ---
+const dz = document.getElementById('dropZone');
+const fi = document.getElementById('fileInput');
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  handleFiles([...e.dataTransfer.files]);
+});
+fi.addEventListener('change', () => handleFiles([...fi.files]));
+
+function handleFiles(files) {
+  files.forEach(f => {
+    if (loadedFiles.find(x => x.name === f.name)) return;
+    loadedFiles.push({ file: f, name: f.name, type: f.name.endsWith('.pdf') ? 'pdf' : 'excel', aseg: currentAseg, status: 'pending' });
+  });
+  renderFileList();
+  document.getElementById('processBtn').disabled = loadedFiles.length === 0;
+}
+
+function removeFile(name) {
+  loadedFiles = loadedFiles.filter(f => f.name !== name);
+  renderFileList();
+  document.getElementById('processBtn').disabled = loadedFiles.length === 0;
+}
+
+function renderFileList() {
+  const el = document.getElementById('fileList');
+  if (loadedFiles.length === 0) {
+    el.innerHTML = '<div style="font-size: 11px; color: var(--gray-text); text-align:center; padding: 10px 0;">Ningún archivo aún</div>';
+    return;
+  }
+  el.innerHTML = loadedFiles.map(f => `
+    <div class="file-item">
+      <span class="file-icon">${f.type === 'pdf' ? '📄' : '📊'}</span>
+      <span class="file-name" title="${f.name}">${f.name}</span>
+      <span class="file-status status-${f.status === 'ok' ? 'ok' : f.status === 'error' ? 'error' : 'processing'}">
+        ${f.status === 'ok' ? '✓ OK' : f.status === 'error' ? 'Error' : 'Pendiente'}
+      </span>
+      <button class="remove-btn" onclick="removeFile('${f.name}')">✕</button>
+    </div>
+  `).join('');
+}
+
+// --- PROCESAMIENTO ---
+async function processFiles() {
+  parsedData = [];
+  logs = [];
+  const btn = document.getElementById('processBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Procesando...';
+
+  renderProcessing();
+
+  for (let i = 0; i < loadedFiles.length; i++) {
+    const lf = loadedFiles[i];
+    log(`Procesando: ${lf.name} (${lf.aseg})`);
+    try {
+      let rows;
+      if (lf.type === 'pdf') rows = await parsePDF(lf.file, lf.aseg);
+      else rows = await parseExcel(lf.file, lf.aseg);
+      parsedData.push(...rows);
+      lf.status = 'ok';
+      log(`✓ ${rows.length} renglones extraídos de ${lf.name}`);
+    } catch (e) {
+      lf.status = 'error';
+      log(`✗ Error en ${lf.name}: ${e.message}`);
+    }
+    renderFileList();
+    updateProgress(Math.round(((i+1)/loadedFiles.length)*100));
+  }
+
+  btn.textContent = '⚙️ Procesar archivos';
+  btn.disabled = false;
+  renderResults();
+  document.getElementById('exportBtn').classList.add('visible');
+}
+
+function log(msg) { logs.push(msg); const lb = document.getElementById('logBox'); if(lb){ lb.innerHTML = logs.map(l=>`<div>${l}</div>`).join(''); lb.scrollTop = lb.scrollHeight; } }
+function updateProgress(pct) { const pf = document.getElementById('progressFill'); if(pf) pf.style.width = pct+'%'; }
+
+function renderProcessing() {
+  document.getElementById('mainContent').innerHTML = `
+    <div class="alert alert-info">⏳ Extrayendo datos de los archivos...</div>
+    <div id="logBox" class="log-box visible"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  `;
+}
+
+// --- PARSER PDF (ASERTA / INSURGENTES style) ---
+async function parsePDF(file, aseg) {
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let allText = [];
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    const items = tc.items.map(i => ({ text: i.str.trim(), x: Math.round(i.transform[4]), y: Math.round(i.transform[5]) })).filter(i => i.text);
+    allText.push(...items);
+  }
+
+  return extractPDFRows(allText, aseg);
+}
+
+function extractPDFRows(items, aseg) {
+  const rows = [];
+  // Group by Y position (same line = same row)
+  const byY = {};
+  items.forEach(it => {
+    const y = it.y;
+    if (!byY[y]) byY[y] = [];
+    byY[y].push(it);
+  });
+
+  const ySorted = Object.keys(byY).map(Number).sort((a,b) => b - a);
+
+  // Find header row
+  let headerY = null;
+  for (const y of ySorted) {
+    const line = byY[y].map(i=>i.text).join(' ');
+    if (line.includes('Prima Neta') || line.includes('No Fianza') || line.includes('Fiado')) {
+      headerY = y;
+      break;
+    }
+  }
+
+  if (!headerY) {
+    // Try to grab tabular rows with known patterns
+    return extractFallbackRows(items, aseg);
+  }
+
+  // Map columns by X position from header
+  const headerItems = byY[headerY];
+  // Extract data rows below header
+  const dataYs = ySorted.filter(y => y < headerY - 5);
+
+  for (const y of dataYs) {
+    const line = byY[y];
+    const fullText = line.map(i=>i.text).join(' ');
+
+    // Skip subtotal/footer rows
+    if (fullText.includes('Subtotal') || fullText.includes('Neto a Pagar') || fullText.includes('Retención') || fullText.includes('Le recordamos')) continue;
+    if (line.length < 3) continue;
+
+    // Try to identify No. Fianza (first column, x small)
+    const sorted = [...line].sort((a,b) => a.x - b.x);
+    const noFianza = sorted[0]?.text || '';
+
+    // Must look like a fianza number
+    if (!isFiltered(noFianza)) continue;
+
+    // Find prima neta (numeric value, position ~5th column)
+    const nums = sorted.map(i => parseFloat(i.text.replace(/,/g,''))).filter(n => !isNaN(n) && n > 0);
+    if (nums.length < 2) continue;
+
+    // Find fiado name
+    const fiado = sorted.find(i => /[A-ZÁÉÍÓÚ]{3,}/.test(i.text) && i.text !== noFianza && !isNumericish(i.text))?.text || '';
+
+    // Get mov type
+    const movs = ['Nueva','Endoso','Renovación','Cancelación','Prórroga','Aumento'];
+    const movText = sorted.map(i=>i.text).find(t => movs.some(m => t.includes(m))) || 'Nueva';
+
+    // Prima neta is usually the largest number that makes sense (not % col)
+    const primaNet = nums.find(n => n > 100) || nums[0];
+    const pct = nums.find(n => n <= 100 && n >= 5) || 0;
+    const comision = primaNet && pct ? primaNet * pct / 100 : (nums[1] || 0);
+
+    // Gastos expedicion (fixed amounts: 2900, 2500, 3800, etc.)
+    const gastosKnown = [2900, 2500, 3800, 3500, 2700, 2600, 2300, 4900, 3000, 12000];
+    const gastos = nums.find(n => gastosKnown.includes(n)) || 2900;
+
+    // Subtotal
+    const subtotal = nums.find(n => n > comision && n < primaNet * 0.5) || comision + gastos * 0.5;
+
+    rows.push({
+      aseg, noFianza, fiado: fiado.substring(0,50), mov: movText,
+      primaNet: primaNet || 0, pct: pct || 0, comision: round2(comision || 0),
+      gastos, subtotal: round2(subtotal || 0),
+      sucursal: guessSucursal(noFianza, aseg)
+    });
+  }
+
+  return rows.length > 0 ? rows : extractFallbackRows(items, aseg);
+}
+
+function extractFallbackRows(items, aseg) {
+  // Regex scan for fianza-like IDs and nearby numbers
+  const rows = [];
+  const allText = items.map(i=>i.text);
+  const fianzaPattern = /^(ADO-|AEG|IEG|\d{4}-\d{5}|\d{7}[A-Z])/;
+
+  for (let i = 0; i < allText.length; i++) {
+    if (fianzaPattern.test(allText[i])) {
+      const noFianza = allText[i];
+      const slice = allText.slice(i, i+20);
+      const nums = slice.map(t => parseFloat(t.replace(/,/g,''))).filter(n => !isNaN(n));
+      if (nums.length < 2) continue;
+      const primaNet = nums.find(n => n > 200) || 0;
+      const pct = nums.find(n => n <= 100 && n >= 5) || 35;
+      const comision = round2(primaNet * pct / 100);
+      const fiado = slice.find(t => /[A-ZÁÉÍÓÚ]{4,}/.test(t) && t !== noFianza) || '';
+      rows.push({ aseg, noFianza, fiado: fiado.substring(0,50), mov: 'Nueva', primaNet, pct, comision, gastos: 2900, subtotal: comision + 1450, sucursal: guessSucursal(noFianza, aseg) });
+    }
+  }
+  return rows;
+}
+
+// --- PARSER EXCEL ---
+async function parseExcel(file, aseg) {
+  const ab = await file.arrayBuffer();
+  const wb = XLSX.read(ab, { type: 'array' });
+  const rows = [];
+
+  // Known sheet name patterns
+  const asegSheets = {
+    'ASERTA': ['ASERTA'],
+    'INSURGENTES': ['INSURGENTES'],
+    'SOFIMEX': ['SOFIMEX-OZ','SOFIMEX-CB','SOFIMEX-BOCA DEL RIO','SOFIMEX-XAL PRO','SOFIMEX'],
+    'BERKLEY': ['BERKLEY-OZ','BERKLEY BOCA DEL RIO','BERKLEY XALAPA','BERKLEY'],
+    'TOKIO': ['TOKIO','TOKIO BOCA DEL RIO'],
+    'DORAMA': ['DORAMA EDUARDO','DORAMA'],
+  };
+
+  const targetSheets = asegSheets[aseg] || wb.SheetNames;
+  const sheetsToProcess = wb.SheetNames.filter(s => {
+    if (aseg === 'OTRO') return true;
+    return targetSheets.some(t => s.toUpperCase().includes(t.toUpperCase()));
+  });
+
+  for (const sheetName of sheetsToProcess) {
+    const ws = wb.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (raw.length < 3) continue;
+
+    // Find header row
+    let hdrIdx = -1;
+    for (let r = 0; r < Math.min(5, raw.length); r++) {
+      const row = raw[r].map(c => String(c));
+      if (row.some(c => c.includes('Prima Neta') || c.includes('PRIMA NETA') || c.includes('No Fianza') || c.includes('NOMBRE FIADO'))) {
+        hdrIdx = r;
+        break;
+      }
+    }
+    if (hdrIdx < 0) continue;
+
+    const headers = raw[hdrIdx].map(h => String(h).trim().toLowerCase().replace(/\n/g,' '));
+
+    // Column indices
+    const colIdx = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+    const cNoFianza = colIdx(['no fianza','fianza','certificado']);
+    const cFiado = colIdx(['fiado','contratante','nombre fiado','nombre/razon','razon social agente']);
+    const cMov = colIdx(['mov','tipo movimiento','movimiento']);
+    const cPrima = colIdx(['prima neta','prima_neta']);
+    const cPct = colIdx(['% de comision','% comision','% comisión']);
+    const cComision = colIdx(['comision','comisión','comisiones','total comision']);
+    const cGastos = colIdx(['gastos expedicion','gastos de expedicion','gastos']);
+    const cSubtotal = colIdx(['subtotal','total comisión','total comision']);
+
+    // Sucursal distribution columns
+    const cXalapa = colIdx(['xalapa']);
+    const cOrizaba = colIdx(['orizaba']);
+    const cCordoba = colIdx(['cordoba','córdoba']);
+    const cBoca = colIdx(['boca del rio','boca del río']);
+    const cPromo = colIdx(['promovidos']);
+    const cEduardo = colIdx(['eduardo']);
+
+    for (let r = hdrIdx + 1; r < raw.length; r++) {
+      const row = raw[r];
+      const noFianza = String(row[cNoFianza] ?? '').trim();
+      if (!noFianza || noFianza === '' || noFianza.toLowerCase().includes('subtotal') || noFianza.toLowerCase().includes('total')) continue;
+      if (!isFiltered(noFianza)) continue;
+
+      const fiado = String(row[cFiado] ?? '').trim().substring(0, 60);
+      const mov = String(row[cMov] ?? 'Nueva').trim();
+      const primaNet = parseNum(row[cPrima]);
+      const pct = parseNum(row[cPct]);
+      const comision = parseNum(row[cComision]);
+      const gastos = parseNum(row[cGastos]);
+      const subtotal = parseNum(row[cSubtotal]);
+
+      // Determine sucursal from distribution columns
+      let sucursal = 'SIN ASIGNAR';
+      if (cXalapa >= 0 && parseNum(row[cXalapa]) > 0) sucursal = 'XALAPA';
+      else if (cOrizaba >= 0 && parseNum(row[cOrizaba]) > 0) sucursal = 'ORIZABA';
+      else if (cCordoba >= 0 && parseNum(row[cCordoba]) > 0) sucursal = 'CÓRDOBA';
+      else if (cBoca >= 0 && parseNum(row[cBoca]) > 0) sucursal = 'BOCA DEL RÍO';
+      else if (cPromo >= 0 && parseNum(row[cPromo]) > 0) sucursal = 'PROMOVIDOS';
+      else if (cEduardo >= 0 && parseNum(row[cEduardo]) > 0) sucursal = 'EDUARDO';
+      else sucursal = guessSucursal(noFianza, aseg);
+
+      rows.push({ aseg, noFianza, fiado, mov, primaNet, pct, comision: round2(comision || primaNet*pct/100), gastos, subtotal: round2(subtotal), sucursal });
+    }
+  }
+  return rows;
+}
+
+// --- HELPERS ---
+function isFiltered(txt) {
+  if (!txt || txt.length < 4) return false;
+  return /^(ADO-|AEG|IEG|\d{3,4}-\d{4,}|[A-Z]{2,4}\d{3,})/i.test(txt);
+}
+function isNumericish(t) { return /^[\d,.\s]+$/.test(t); }
+function parseNum(v) { if (v === null || v === undefined || v === '') return 0; const n = parseFloat(String(v).replace(/,/g,'')); return isNaN(n) ? 0 : n; }
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+function fmt(n) { return (n||0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function guessSucursal(noFianza, aseg) {
+  if (!noFianza) return 'SIN ASIGNAR';
+  const f = noFianza.toLowerCase();
+  if (f.includes('1480') || f.includes('boca') || aseg === 'TOKIO') return 'BOCA DEL RÍO';
+  if (f.startsWith('aeg007')) return 'XALAPA';
+  if (f.startsWith('1423') || f.startsWith('8246')) return 'ORIZABA';
+  if (f.startsWith('ado-aeg201') || f.startsWith('ado-ieg137')) return 'XALAPA';
+  return 'SIN ASIGNAR';
+}
+
+// --- RENDER RESULTS ---
+let activeTab = 'detalle';
+
+function renderResults() {
+  const totalesPorAseg = {};
+  const totalesPorSuc = {};
+  SUCURSALES.forEach(s => totalesPorSuc[s] = 0);
+
+  parsedData.forEach(r => {
+    if (!totalesPorAseg[r.aseg]) totalesPorAseg[r.aseg] = { subtotal: 0, count: 0 };
+    totalesPorAseg[r.aseg].subtotal += r.subtotal || r.comision;
+    totalesPorAseg[r.aseg].count++;
+    if (totalesPorSuc[r.sucursal] !== undefined) totalesPorSuc[r.sucursal] += r.subtotal || r.comision;
+    else totalesPorSuc['SIN ASIGNAR'] += r.subtotal || r.comision;
+  });
+
+  const grandTotal = parsedData.reduce((s,r) => s + (r.subtotal || r.comision), 0);
+  const aseguradoras = [...new Set(parsedData.map(r=>r.aseg))];
+
+  document.getElementById('mainContent').innerHTML = `
+    <div id="logBox" class="log-box visible">${logs.map(l=>`<div>${l}</div>`).join('')}</div>
+    
+    <div class="summary-cards">
+      <div class="card">
+        <div class="card-label">Total comisiones</div>
+        <div class="card-value">$${fmt(grandTotal)}</div>
+        <div class="card-sub">${parsedData.length} fianzas procesadas</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Aseguradoras</div>
+        <div class="card-value">${aseguradoras.length}</div>
+        <div class="card-sub">${aseguradoras.join(', ')}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Mayor sucursal</div>
+        <div class="card-value" style="font-size:15px">${getMayorSuc(totalesPorSuc)}</div>
+        <div class="card-sub">$${fmt(Math.max(...Object.values(totalesPorSuc)))}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Sin sucursal asignada</div>
+        <div class="card-value" style="color:${parsedData.filter(r=>r.sucursal==='SIN ASIGNAR').length > 0 ? 'var(--amber)' : 'var(--green)'}">${parsedData.filter(r=>r.sucursal==='SIN ASIGNAR').length}</div>
+        <div class="card-sub">Requieren asignación manual</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('detalle',this)">Detalle por fianza</button>
+      <button class="tab" onclick="switchTab('totales',this)">Resumen por aseguradora</button>
+      <button class="tab" onclick="switchTab('sucursales',this)">Distribución sucursales</button>
+    </div>
+
+    <div id="tabDetalle">
+      ${parsedData.filter(r=>r.sucursal==='SIN ASIGNAR').length > 0 
+        ? '<div class="alert alert-warn">⚠️ Algunas fianzas no tienen sucursal asignada. Selecciona la correcta en la columna "Sucursal" antes de exportar.</div>' 
+        : ''}
+      <div class="table-container">
+        <table id="detalleTable">
+          <thead>
+            <tr>
+              <th>No. Fianza / Cert.</th>
+              <th>Aseguradora</th>
+              <th>Fiado / Contratante</th>
+              <th>Mov.</th>
+              <th class="td-right">Prima Neta</th>
+              <th class="td-right">% Com.</th>
+              <th class="td-right">Comisión</th>
+              <th class="td-right">Subtotal</th>
+              <th>Sucursal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${parsedData.map((r,i) => `
+              <tr>
+                <td class="td-mono">${r.noFianza}</td>
+                <td><span class="badge badge-${r.aseg.toLowerCase()}">${r.aseg}</span></td>
+                <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${r.fiado}">${r.fiado}</td>
+                <td>${r.mov}</td>
+                <td class="td-right">$${fmt(r.primaNet)}</td>
+                <td class="td-right">${r.pct}%</td>
+                <td class="td-right">$${fmt(r.comision)}</td>
+                <td class="td-right"><strong>$${fmt(r.subtotal || r.comision)}</strong></td>
+                <td>
+                  <select class="sucursal-select" onchange="updateSucursal(${i}, this.value)">
+                    ${SUCURSALES.map(s => `<option value="${s}" ${r.sucursal===s?'selected':''}>${s}</option>`).join('')}
+                  </select>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tabTotales" style="display:none">
+      <div class="table-container">
+        <table>
+          <thead><tr><th>Aseguradora</th><th class="td-right">Fianzas</th><th class="td-right">Comisiones (Subtotal)</th></tr></thead>
+          <tbody>
+            ${Object.entries(totalesPorAseg).map(([a,v]) => `
+              <tr>
+                <td><span class="badge badge-${a.toLowerCase()}">${a}</span></td>
+                <td class="td-right">${v.count}</td>
+                <td class="td-right"><strong>$${fmt(v.subtotal)}</strong></td>
+              </tr>
+            `).join('')}
+            <tr class="totales-row">
+              <td><strong>TOTAL SEMANA</strong></td>
+              <td class="td-right"><strong>${parsedData.length}</strong></td>
+              <td class="td-right"><strong>$${fmt(grandTotal)}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tabSucursales" style="display:none">
+      <div class="table-container">
+        <table id="sucTable">
+          <thead>
+            <tr>
+              <th>Sucursal</th>
+              ${aseguradoras.map(a=>`<th class="td-right">${a}</th>`).join('')}
+              <th class="td-right">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody id="sucTbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  renderSucursalesTable();
+}
+
+function getMayorSuc(totalesPorSuc) {
+  return Object.entries(totalesPorSuc).filter(([k])=>k!=='SIN ASIGNAR').sort((a,b)=>b[1]-a[1])[0]?.[0] || '-';
+}
+
+function switchTab(tab, btn) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['detalle','totales','sucursales'].forEach(t => {
+    const el = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+  if (tab === 'sucursales') renderSucursalesTable();
+}
+
+function renderSucursalesTable() {
+  const aseguradoras = [...new Set(parsedData.map(r=>r.aseg))];
+  const matrix = {};
+  SUCURSALES.forEach(s => {
+    matrix[s] = {};
+    aseguradoras.forEach(a => matrix[s][a] = 0);
+  });
+  parsedData.forEach(r => {
+    const s = r.sucursal || 'SIN ASIGNAR';
+    if (!matrix[s]) matrix[s] = {};
+    if (!matrix[s][r.aseg]) matrix[s][r.aseg] = 0;
+    matrix[s][r.aseg] += r.subtotal || r.comision;
+  });
+
+  const tbody = document.getElementById('sucTbody');
+  if (!tbody) return;
+  const rows = SUCURSALES.filter(s => Object.values(matrix[s]).some(v=>v>0));
+  const totalRow = {};
+  aseguradoras.forEach(a => totalRow[a] = 0);
+
+  tbody.innerHTML = rows.map(s => {
+    const rowTotal = aseguradoras.reduce((sum,a) => { totalRow[a] += matrix[s][a]||0; return sum + (matrix[s][a]||0); }, 0);
+    return `<tr>
+      <td><strong>${s}</strong></td>
+      ${aseguradoras.map(a => `<td class="td-right">${matrix[s][a] ? '$'+fmt(matrix[s][a]) : '—'}</td>`).join('')}
+      <td class="td-right"><strong>$${fmt(rowTotal)}</strong></td>
+    </tr>`;
+  }).join('') + `
+    <tr class="totales-row">
+      <td><strong>TOTAL</strong></td>
+      ${aseguradoras.map(a=>`<td class="td-right"><strong>$${fmt(totalRow[a])}</strong></td>`).join('')}
+      <td class="td-right"><strong>$${fmt(Object.values(totalRow).reduce((s,v)=>s+v,0))}</strong></td>
+    </tr>`;
+}
+
+function updateSucursal(idx, val) {
+  parsedData[idx].sucursal = val;
+  renderSucursalesTable();
+}
+
+// --- EXPORT EXCEL EJECUTIVO (ExcelJS) ---
+async function exportExcel() {
+  const exportBtn = document.getElementById('exportBtn');
+  exportBtn.textContent = '⏳ Generando...';
+  exportBtn.disabled = true;
+
+  try {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'V&A — Velasco Asesores';
+    wb.created = new Date();
+
+    // Paleta corporativa
+    const NAVY = 'FF1B3A6B';
+    const NAVY_TINT = 'FFE8EEF7';
+    const GRAY_LINE = 'FFE5E7EB';
+    const GRAY_TEXT = 'FF6B7280';
+    const GRAY_ALT = 'FFFAFBFC';
+    const AMBER = 'FF92620A';
+    const GREEN = 'FF1A7A4A';
+
+    // Color de marca por aseguradora (relleno suave + texto oscuro)
+    const asegFill = {
+      'ASERTA':'FFDBEAFE','INSURGENTES':'FFFCE7F3','SOFIMEX':'FFD1FAE5',
+      'BERKLEY':'FFFEF3C7','TOKIO':'FFEDE9FE','DORAMA':'FFFEE2E2',
+      'CHUBB':'FFF3F4F6','OTRO':'FFF3F4F6'
+    };
+    const asegText = {
+      'ASERTA':'FF1E40AF','INSURGENTES':'FF9D174D','SOFIMEX':'FF065F46',
+      'BERKLEY':'FF92400E','TOKIO':'FF5B21B6','DORAMA':'FF991B1B',
+      'CHUBB':'FF4B5563','OTRO':'FF4B5563'
+    };
+
+    // --- Cálculos ---
+    const aseguradoras = [...new Set(parsedData.map(r => r.aseg))];
+    const sucActivas = SUCURSALES.filter(s => parsedData.some(r => r.sucursal === s));
+    const totalGeneral = parsedData.reduce((s,r)=>s+(r.subtotal||r.comision), 0);
+    const totalPorAseg = {};
+    aseguradoras.forEach(a => totalPorAseg[a] = parsedData.filter(r=>r.aseg===a).reduce((s,r)=>s+(r.subtotal||r.comision),0));
+    const totalPorSuc = {};
+    SUCURSALES.forEach(s => totalPorSuc[s] = parsedData.filter(r=>r.sucursal===s).reduce((sum,r)=>sum+(r.subtotal||r.comision),0));
+    const matrix = {};
+    SUCURSALES.forEach(s => { matrix[s] = {}; aseguradoras.forEach(a => matrix[s][a] = 0); });
+    parsedData.forEach(r => { if (matrix[r.sucursal]) matrix[r.sucursal][r.aseg] = (matrix[r.sucursal][r.aseg]||0) + (r.subtotal||r.comision); });
+
+    const sinAsignar = parsedData.filter(r => r.sucursal === 'SIN ASIGNAR').length;
+    const today = new Date();
+    const fechaTxt = today.toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' });
+
+    // ================ HOJA 1: RESUMEN EJECUTIVO ================
+    const s1 = wb.addWorksheet('Resumen', { views:[{showGridLines:false}], properties:{tabColor:{argb:NAVY}} });
+    s1.getColumn(1).width = 3;
+    s1.getColumn(2).width = 30;
+    s1.getColumn(3).width = 18;
+    s1.getColumn(4).width = 18;
+    s1.getColumn(5).width = 18;
+    s1.getColumn(6).width = 14;
+    s1.getColumn(7).width = 3;
+
+    // Título principal (banda navy)
+    s1.mergeCells('B2:F2');
+    const t1 = s1.getCell('B2');
+    t1.value = 'REPORTE SEMANAL DE COMISIONES';
+    t1.font = { name:'Calibri', size:18, bold:true, color:{argb:'FFFFFFFF'} };
+    t1.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+    t1.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    s1.getRow(2).height = 42;
+
+    s1.mergeCells('B3:F3');
+    const t1b = s1.getCell('B3');
+    t1b.value = `V&A Agente de Seguros y Fianzas · Zona C  ·  ${fechaTxt}`;
+    t1b.font = { name:'Calibri', size:10, italic:true, color:{argb:GRAY_TEXT} };
+    t1b.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    s1.getRow(3).height = 20;
+    s1.getRow(4).height = 8;
+
+    // KPIs en grid 4 columnas
+    const kpis = [
+      ['TOTAL COMISIONES', totalGeneral, '"$"#,##0.00', NAVY],
+      ['FIANZAS PROCESADAS', parsedData.length, '#,##0', NAVY],
+      ['ASEGURADORAS', aseguradoras.length, '0', NAVY],
+      ['SIN SUCURSAL', sinAsignar, '0', sinAsignar > 0 ? AMBER : GREEN]
+    ];
+    kpis.forEach((k,i) => {
+      const col = String.fromCharCode(66 + i); // B,C,D,E
+      const lbl = s1.getCell(`${col}5`);
+      lbl.value = k[0];
+      lbl.font = { name:'Calibri', size:9, bold:true, color:{argb:GRAY_TEXT} };
+      lbl.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+      lbl.border = { top:{style:'thin',color:{argb:GRAY_LINE}}, left:{style:'thin',color:{argb:GRAY_LINE}}, right:{style:'thin',color:{argb:GRAY_LINE}} };
+
+      const val = s1.getCell(`${col}6`);
+      val.value = k[1];
+      val.numFmt = k[2];
+      val.font = { name:'Calibri', size:18, bold:true, color:{argb:k[3]} };
+      val.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+      val.border = { left:{style:'thin',color:{argb:GRAY_LINE}}, right:{style:'thin',color:{argb:GRAY_LINE}}, bottom:{style:'thin',color:{argb:GRAY_LINE}} };
+    });
+    s1.getRow(5).height = 18;
+    s1.getRow(6).height = 36;
+    s1.getRow(7).height = 18;
+
+    // SECCIÓN: Por Aseguradora
+    s1.mergeCells('B8:F8');
+    const h1 = s1.getCell('B8');
+    h1.value = 'TOTALES POR ASEGURADORA';
+    h1.font = { name:'Calibri', size:11, bold:true, color:{argb:NAVY} };
+    h1.border = { bottom:{style:'medium', color:{argb:NAVY}} };
+    s1.getRow(8).height = 24;
+
+    const hdr1 = [['B','Aseguradora','left'],['C','Fianzas','right'],['D','Comisiones','right'],['E','% del Total','right']];
+    let row = 9;
+    hdr1.forEach(([c,v,a]) => {
+      const cell = s1.getCell(`${c}${row}`);
+      cell.value = v;
+      cell.font = { name:'Calibri', size:10, bold:true, color:{argb:'FFFFFFFF'} };
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+      cell.alignment = { vertical:'middle', horizontal:a, indent:1 };
+    });
+    s1.getRow(row).height = 22;
+    row++;
+
+    const asegSorted = aseguradoras.slice().sort((a,b)=>totalPorAseg[b]-totalPorAseg[a]);
+    asegSorted.forEach(a => {
+      // Aseguradora (celda con color de marca, único color en la fila)
+      const cA = s1.getCell(`B${row}`);
+      cA.value = a;
+      cA.font = { name:'Calibri', size:10, bold:true, color:{argb:asegText[a]||asegText['OTRO']} };
+      cA.fill = { type:'pattern', pattern:'solid', fgColor:{argb:asegFill[a]||asegFill['OTRO']} };
+      cA.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+      const cB = s1.getCell(`C${row}`);
+      cB.value = parsedData.filter(r=>r.aseg===a).length;
+      cB.font = { name:'Calibri', size:10 };
+      cB.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      const cC = s1.getCell(`D${row}`);
+      cC.value = totalPorAseg[a];
+      cC.numFmt = '"$"#,##0.00';
+      cC.font = { name:'Calibri', size:10 };
+      cC.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      const cD = s1.getCell(`E${row}`);
+      cD.value = totalPorAseg[a]/totalGeneral;
+      cD.numFmt = '0.0%';
+      cD.font = { name:'Calibri', size:10, color:{argb:GRAY_TEXT} };
+      cD.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      ['B','C','D','E'].forEach(col => s1.getCell(`${col}${row}`).border = { bottom:{style:'thin', color:{argb:GRAY_LINE}} });
+      s1.getRow(row).height = 22;
+      row++;
+    });
+    // Total
+    const tot1 = [['B','TOTAL SEMANA','left'],['C',parsedData.length,'right','#,##0'],['D',totalGeneral,'right','"$"#,##0.00'],['E',1,'right','0.0%']];
+    tot1.forEach(([c,v,a,fmt]) => {
+      const cell = s1.getCell(`${c}${row}`);
+      cell.value = v;
+      if (fmt) cell.numFmt = fmt;
+      cell.font = { name:'Calibri', size:11, bold:true, color:{argb:'FFFFFFFF'} };
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+      cell.alignment = { vertical:'middle', horizontal:a, indent:1 };
+    });
+    s1.getRow(row).height = 26;
+    row += 2;
+
+    // SECCIÓN: Por Sucursal
+    s1.mergeCells(`B${row}:F${row}`);
+    const h2 = s1.getCell(`B${row}`);
+    h2.value = 'DISTRIBUCIÓN POR SUCURSAL';
+    h2.font = { name:'Calibri', size:11, bold:true, color:{argb:NAVY} };
+    h2.border = { bottom:{style:'medium', color:{argb:NAVY}} };
+    s1.getRow(row).height = 24;
+    row++;
+
+    // Header sucursal
+    [['B','Sucursal','left'],['C','Fianzas','right'],['D','Comisiones','right'],['E','% del Total','right']].forEach(([c,v,a]) => {
+      const cell = s1.getCell(`${c}${row}`);
+      cell.value = v;
+      cell.font = { name:'Calibri', size:10, bold:true, color:{argb:'FFFFFFFF'} };
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+      cell.alignment = { vertical:'middle', horizontal:a, indent:1 };
+    });
+    s1.getRow(row).height = 22;
+    row++;
+
+    const sucSorted = sucActivas.slice().sort((a,b)=>totalPorSuc[b]-totalPorSuc[a]);
+    sucSorted.forEach(s => {
+      const isUna = s === 'SIN ASIGNAR';
+      s1.getCell(`B${row}`).value = s;
+      s1.getCell(`B${row}`).font = { name:'Calibri', size:10, bold:true, color:{argb: isUna ? AMBER : NAVY} };
+      s1.getCell(`B${row}`).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+      s1.getCell(`C${row}`).value = parsedData.filter(r=>r.sucursal===s).length;
+      s1.getCell(`C${row}`).font = { name:'Calibri', size:10 };
+      s1.getCell(`C${row}`).alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      s1.getCell(`D${row}`).value = totalPorSuc[s];
+      s1.getCell(`D${row}`).numFmt = '"$"#,##0.00';
+      s1.getCell(`D${row}`).font = { name:'Calibri', size:10 };
+      s1.getCell(`D${row}`).alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      s1.getCell(`E${row}`).value = totalPorSuc[s]/totalGeneral;
+      s1.getCell(`E${row}`).numFmt = '0.0%';
+      s1.getCell(`E${row}`).font = { name:'Calibri', size:10, color:{argb:GRAY_TEXT} };
+      s1.getCell(`E${row}`).alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      ['B','C','D','E'].forEach(col => s1.getCell(`${col}${row}`).border = { bottom:{style:'thin', color:{argb:GRAY_LINE}} });
+      s1.getRow(row).height = 22;
+      row++;
+    });
+    // Total sucursales
+    [['B','TOTAL SEMANA','left',null],['C',parsedData.length,'right','#,##0'],['D',totalGeneral,'right','"$"#,##0.00'],['E',1,'right','0.0%']].forEach(([c,v,a,fmt]) => {
+      const cell = s1.getCell(`${c}${row}`);
+      cell.value = v;
+      if (fmt) cell.numFmt = fmt;
+      cell.font = { name:'Calibri', size:11, bold:true, color:{argb:'FFFFFFFF'} };
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+      cell.alignment = { vertical:'middle', horizontal:a, indent:1 };
+    });
+    s1.getRow(row).height = 26;
+
+    // ================ HOJA 2: MATRIZ ================
+    const s2 = wb.addWorksheet('Matriz Sucursal × Aseg', { views:[{showGridLines:false}], properties:{tabColor:{argb:NAVY}} });
+    s2.getColumn(1).width = 3;
+    s2.getColumn(2).width = 24;
+    aseguradoras.forEach((_,i) => s2.getColumn(3+i).width = 17);
+    s2.getColumn(3+aseguradoras.length).width = 18;
+
+    s2.mergeCells(2, 2, 2, 3 + aseguradoras.length);
+    const t2 = s2.getCell('B2');
+    t2.value = 'MATRIZ DE COMISIONES — SUCURSAL × ASEGURADORA';
+    t2.font = { name:'Calibri', size:14, bold:true, color:{argb:'FFFFFFFF'} };
+    t2.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+    t2.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    s2.getRow(2).height = 36;
+    s2.getRow(3).height = 8;
+
+    // Header
+    let r2 = 4;
+    s2.getCell(r2,2).value = 'Sucursal';
+    aseguradoras.forEach((a,i) => s2.getCell(r2, 3+i).value = a);
+    s2.getCell(r2, 3+aseguradoras.length).value = 'TOTAL';
+    for (let i=2; i<=3+aseguradoras.length; i++) {
+      const cell = s2.getCell(r2, i);
+      cell.font = { name:'Calibri', size:10, bold:true, color:{argb:'FFFFFFFF'} };
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+      cell.alignment = { vertical:'middle', horizontal: i===2 ? 'left' : 'right', indent:1 };
+    }
+    s2.getRow(r2).height = 28;
+    r2++;
+
+    const colTot = aseguradoras.map(()=>0);
+    let gT = 0;
+    sucActivas.forEach(s => {
+      const cS = s2.getCell(r2,2);
+      cS.value = s;
+      const isUna = s === 'SIN ASIGNAR';
+      cS.font = { name:'Calibri', size:10, bold:true, color:{argb: isUna ? AMBER : NAVY} };
+      cS.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+      let rT = 0;
+      aseguradoras.forEach((a,i) => {
+        const v = matrix[s][a] || 0;
+        const c = s2.getCell(r2, 3+i);
+        if (v > 0) {
+          c.value = v;
+          c.numFmt = '"$"#,##0.00';
+          c.font = { name:'Calibri', size:10 };
+        } else {
+          c.value = '—';
+          c.font = { name:'Calibri', size:10, color:{argb:'FFD1D5DB'} };
+        }
+        c.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+        rT += v;
+        colTot[i] += v;
+      });
+
+      const tCell = s2.getCell(r2, 3+aseguradoras.length);
+      tCell.value = rT;
+      tCell.numFmt = '"$"#,##0.00';
+      tCell.font = { name:'Calibri', size:10, bold:true, color:{argb:NAVY} };
+      tCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY_TINT} };
+      tCell.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      gT += rT;
+      for (let i=2; i<=3+aseguradoras.length; i++) s2.getCell(r2,i).border = { bottom:{style:'thin', color:{argb:GRAY_LINE}} };
+      s2.getRow(r2).height = 22;
+      r2++;
+    });
+
+    // Fila total
+    s2.getCell(r2,2).value = 'TOTAL SEMANA';
+    s2.getCell(r2,2).font = { name:'Calibri', size:11, bold:true, color:{argb:'FFFFFFFF'} };
+    s2.getCell(r2,2).fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+    s2.getCell(r2,2).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    aseguradoras.forEach((a,i) => {
+      const c = s2.getCell(r2, 3+i);
+      c.value = colTot[i];
+      c.numFmt = '"$"#,##0.00';
+      c.font = { name:'Calibri', size:11, bold:true, color:{argb:'FFFFFFFF'} };
+      c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+      c.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+    });
+    const gTC = s2.getCell(r2, 3+aseguradoras.length);
+    gTC.value = gT;
+    gTC.numFmt = '"$"#,##0.00';
+    gTC.font = { name:'Calibri', size:12, bold:true, color:{argb:'FFFFFFFF'} };
+    gTC.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+    gTC.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+    s2.getRow(r2).height = 30;
+
+    s2.views = [{ state:'frozen', xSplit:2, ySplit:4, showGridLines:false }];
+
+    // ================ HOJA 3: DETALLE ================
+    const s3 = wb.addWorksheet('Detalle', { views:[{showGridLines:false, state:'frozen', ySplit:4}], properties:{tabColor:{argb:'FFC0C0C0'}} });
+    s3.getColumn(1).width = 3;
+    [['B',18],['C',14],['D',38],['E',12],['F',14],['G',9],['H',14],['I',14],['J',14],['K',16]].forEach(([col,w]) => s3.getColumn(col).width = w);
+
+    s3.mergeCells('B2:K2');
+    const t3 = s3.getCell('B2');
+    t3.value = 'DETALLE DE FIANZAS — PERIODO ACTUAL';
+    t3.font = { name:'Calibri', size:14, bold:true, color:{argb:'FFFFFFFF'} };
+    t3.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+    t3.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    s3.getRow(2).height = 36;
+    s3.getRow(3).height = 8;
+
+    const heads3 = ['No. Fianza','Aseguradora','Fiado / Contratante','Movimiento','Prima Neta','%','Comisión','Gastos Exp.','Subtotal','Sucursal'];
+    heads3.forEach((h,i) => {
+      const c = s3.getCell(4, 2+i);
+      c.value = h;
+      c.font = { name:'Calibri', size:10, bold:true, color:{argb:'FFFFFFFF'} };
+      c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+      c.alignment = { vertical:'middle', horizontal: (i>=4 && i<=8) ? 'right' : (i===1 ? 'center' : 'left'), indent:1 };
+    });
+    s3.getRow(4).height = 28;
+
+    // Datos ordenados por aseguradora, luego sucursal
+    const sorted = parsedData.slice().sort((a,b) => a.aseg.localeCompare(b.aseg) || (a.sucursal||'').localeCompare(b.sucursal||''));
+    let r3 = 5;
+    sorted.forEach((rec, idx) => {
+      const isAlt = idx % 2 === 1;
+
+      // No. Fianza
+      const c1 = s3.getCell(r3, 2);
+      c1.value = rec.noFianza;
+      c1.font = { name:'Consolas', size:9 };
+      c1.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+      // Aseguradora (ÚNICA celda con color en la fila — preferencia de Tamara)
+      const c2 = s3.getCell(r3, 3);
+      c2.value = rec.aseg;
+      c2.font = { name:'Calibri', size:9, bold:true, color:{argb: asegText[rec.aseg] || asegText['OTRO']} };
+      c2.fill = { type:'pattern', pattern:'solid', fgColor:{argb: asegFill[rec.aseg] || asegFill['OTRO']} };
+      c2.alignment = { vertical:'middle', horizontal:'center' };
+
+      // Fiado
+      const c3 = s3.getCell(r3, 4);
+      c3.value = rec.fiado;
+      c3.font = { name:'Calibri', size:10 };
+      c3.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+      // Mov
+      const c4 = s3.getCell(r3, 5);
+      c4.value = rec.mov;
+      c4.font = { name:'Calibri', size:10, color:{argb:GRAY_TEXT} };
+      c4.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+      // Prima Neta
+      const c5 = s3.getCell(r3, 6);
+      c5.value = rec.primaNet;
+      c5.numFmt = '"$"#,##0.00';
+      c5.font = { name:'Calibri', size:10 };
+      c5.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      // %
+      const c6 = s3.getCell(r3, 7);
+      c6.value = rec.pct/100;
+      c6.numFmt = '0.0%';
+      c6.font = { name:'Calibri', size:10, color:{argb:GRAY_TEXT} };
+      c6.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      // Comisión
+      const c7 = s3.getCell(r3, 8);
+      c7.value = rec.comision;
+      c7.numFmt = '"$"#,##0.00';
+      c7.font = { name:'Calibri', size:10 };
+      c7.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      // Gastos
+      const c8 = s3.getCell(r3, 9);
+      c8.value = rec.gastos;
+      c8.numFmt = '"$"#,##0.00';
+      c8.font = { name:'Calibri', size:10, color:{argb:GRAY_TEXT} };
+      c8.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      // Subtotal — destacado en navy
+      const c9 = s3.getCell(r3, 10);
+      c9.value = rec.subtotal || rec.comision;
+      c9.numFmt = '"$"#,##0.00';
+      c9.font = { name:'Calibri', size:10, bold:true, color:{argb:NAVY} };
+      c9.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+
+      // Sucursal — ámbar si está sin asignar
+      const c10 = s3.getCell(r3, 11);
+      c10.value = rec.sucursal;
+      const isUna = rec.sucursal === 'SIN ASIGNAR';
+      c10.font = { name:'Calibri', size:10, color:{argb: isUna ? AMBER : NAVY}, bold: isUna };
+      c10.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+      // Filas alternas suaves (sin tocar la celda de aseguradora ya coloreada)
+      if (isAlt) {
+        [2,4,5,6,7,8,9,10,11].forEach(col => {
+          const cc = s3.getCell(r3,col);
+          if (!cc.fill || cc.fill.type !== 'pattern') {
+            cc.fill = { type:'pattern', pattern:'solid', fgColor:{argb:GRAY_ALT} };
+          }
+        });
+      }
+      for (let i=2; i<=11; i++) {
+        const cc = s3.getCell(r3,i);
+        cc.border = Object.assign({}, cc.border||{}, { bottom:{style:'thin', color:{argb:'FFF0F0F0'}} });
+      }
+      s3.getRow(r3).height = 20;
+      r3++;
+    });
+
+    // Fila total final
+    s3.mergeCells(r3, 2, r3, 5);
+    s3.getCell(r3,2).value = 'TOTAL SEMANA';
+    s3.getCell(r3,2).font = { name:'Calibri', size:11, bold:true, color:{argb:'FFFFFFFF'} };
+    s3.getCell(r3,2).fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+    s3.getCell(r3,2).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+    s3.getCell(r3,6).value = parsedData.reduce((s,r)=>s+r.primaNet, 0);
+    s3.getCell(r3,6).numFmt = '"$"#,##0.00';
+    s3.getCell(r3,8).value = parsedData.reduce((s,r)=>s+r.comision, 0);
+    s3.getCell(r3,8).numFmt = '"$"#,##0.00';
+    s3.getCell(r3,10).value = totalGeneral;
+    s3.getCell(r3,10).numFmt = '"$"#,##0.00';
+
+    [6,7,8,9,10,11].forEach(i => {
+      const c = s3.getCell(r3, i);
+      c.font = { name:'Calibri', size:11, bold:true, color:{argb:'FFFFFFFF'} };
+      c.fill = { type:'pattern', pattern:'solid', fgColor:{argb:NAVY} };
+      c.alignment = { vertical:'middle', horizontal:'right', indent:1 };
+    });
+    s3.getRow(r3).height = 30;
+
+    s3.autoFilter = { from:{row:4, column:2}, to:{row:r3-1, column:11} };
+
+    // --- Descargar ---
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const fecha = new Date().toISOString().split('T')[0].replace(/-/g,'');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Comisiones_Semanal_${fecha}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    console.error(e);
+    alert('Error al generar Excel: ' + e.message);
+  } finally {
+    exportBtn.textContent = '📥 Exportar a Excel ejecutivo';
+    exportBtn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
